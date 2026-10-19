@@ -1,0 +1,54 @@
+{
+  "id": "rewind.codex",
+  "name": "The Codex",
+  "version": "1.0.0",
+  "description": "Book + audiobook metadata for Rewind — one search across Hardcover, Google Books, Open Library and Audible (Audnexus), merged: covers, authors, narrators, series, descriptions, chapters. Powers the Books space; The Forge finds the releases.",
+  "resources": [
+    "search",
+    "meta",
+    "artwork"
+  ],
+  "types": [
+    "book",
+    "audiobook"
+  ],
+  "idPrefixes": [
+    "codex:"
+  ],
+  "provides": {
+    "metadata": [
+      "books"
+    ],
+    "artwork": [
+      "books"
+    ]
+  },
+  "rewind": {
+    "kind": "books",
+    "sdk": 2,
+    "repo": "j4ckgrey/rewind_codex",
+    "branch": "main",
+    "bundlePath": "dist/index.mjs",
+    "bundleUrl": "https://raw.githubusercontent.com/j4ckgrey/rewind_codex/main/dist/index.mjs",
+    "tabs": [],
+    "configKeys": [
+      {
+        "key": "codex_hardcover_token",
+        "label": "Hardcover API token",
+        "category": "Books",
+        "card": "codex",
+        "description": "Optional, recommended. Best covers, series and ratings. hardcover.app → Settings → Hardcover API (expires every 1 January)."
+      },
+      {
+        "key": "codex_google_books_key",
+        "label": "Google Books API key",
+        "category": "Books",
+        "card": "codex",
+        "description": "Optional. Strong for German and other non-English books. Free key from Google Cloud Console → Books API."
+      }
+    ],
+    "features": [
+      "books"
+    ]
+  }
+}
