@@ -597,7 +597,7 @@ var GENRES = [
   { id: "self_help", ol: "self-help", audible: { en: "self help", de: "Ratgeber" }, names: { en: "Self-help", de: "Ratgeber", es: "Autoayuda", fr: "D\xE9veloppement personnel", it: "Crescita personale", pt: "Autoajuda", nl: "Zelfhulp", zh: "\u81EA\u6211\u63D0\u5347" } },
   { id: "children", ol: "children", audible: { en: "kids", de: "Kinder" }, names: { en: "Kids", de: "Kinder", es: "Infantil", fr: "Enfants", it: "Bambini", pt: "Infantil", nl: "Kinderen", zh: "\u513F\u7AE5" } }
 ];
-var DISCOVER_LISTS = [
+var ALL_LISTS = [
   {
     id: "trending-week",
     kind: "book",
@@ -662,6 +662,10 @@ var DISCOVER_LISTS = [
     names: g.names
   }))
 ];
+var GROUP_ORDER = ["trending", "charts", "genres"];
+var DISCOVER_LISTS = [...ALL_LISTS].sort(
+  (a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group) || (a.kind === b.kind ? 0 : a.kind === "book" ? -1 : 1)
+);
 var WEEK = 7 * 864e5;
 var cache = null;
 var seenLangs = /* @__PURE__ */ new Set(["en"]);
@@ -774,7 +778,7 @@ var resources = {
 var manifest_default = {
   id: "rewind.codex",
   name: "The Codex",
-  version: "1.0.0",
+  version: "1.1.0",
   description: "Book + audiobook metadata for Rewind \u2014 one search across Hardcover, Google Books, Open Library and Audible (Audnexus), merged: covers, authors, narrators, series, descriptions, chapters. Powers the Books space; The Forge finds the releases.",
   resources: [
     "search",
@@ -911,6 +915,58 @@ var manifest_default = {
         pt: "Em alta",
         nl: "Trending",
         zh: "\u70ED\u95E8"
+      }
+    },
+    {
+      id: "bestsellers",
+      type: "audiobook",
+      name: "Bestsellers",
+      names: {
+        en: "Bestsellers",
+        de: "Bestseller",
+        es: "M\xE1s vendidos",
+        fr: "Meilleures ventes",
+        it: "Pi\xF9 venduti",
+        pt: "Mais vendidos",
+        nl: "Bestsellers",
+        zh: "\u7545\u9500\u699C"
+      },
+      group: "charts",
+      groupNames: {
+        en: "Charts",
+        de: "Charts",
+        es: "Listas",
+        fr: "Classements",
+        it: "Classifiche",
+        pt: "Tops",
+        nl: "Hitlijsten",
+        zh: "\u6392\u884C\u699C"
+      }
+    },
+    {
+      id: "new-releases",
+      type: "audiobook",
+      name: "New releases",
+      names: {
+        en: "New releases",
+        de: "Neuerscheinungen",
+        es: "Novedades",
+        fr: "Nouveaut\xE9s",
+        it: "Novit\xE0",
+        pt: "Novidades",
+        nl: "Nieuw verschenen",
+        zh: "\u65B0\u54C1"
+      },
+      group: "charts",
+      groupNames: {
+        en: "Charts",
+        de: "Charts",
+        es: "Listas",
+        fr: "Classements",
+        it: "Classifiche",
+        pt: "Tops",
+        nl: "Hitlijsten",
+        zh: "\u6392\u884C\u699C"
       }
     },
     {
@@ -1171,58 +1227,6 @@ var manifest_default = {
         pt: "G\xE9neros",
         nl: "Genres",
         zh: "\u7C7B\u578B"
-      }
-    },
-    {
-      id: "bestsellers",
-      type: "audiobook",
-      name: "Bestsellers",
-      names: {
-        en: "Bestsellers",
-        de: "Bestseller",
-        es: "M\xE1s vendidos",
-        fr: "Meilleures ventes",
-        it: "Pi\xF9 venduti",
-        pt: "Mais vendidos",
-        nl: "Bestsellers",
-        zh: "\u7545\u9500\u699C"
-      },
-      group: "charts",
-      groupNames: {
-        en: "Charts",
-        de: "Charts",
-        es: "Listas",
-        fr: "Classements",
-        it: "Classifiche",
-        pt: "Tops",
-        nl: "Hitlijsten",
-        zh: "\u6392\u884C\u699C"
-      }
-    },
-    {
-      id: "new-releases",
-      type: "audiobook",
-      name: "New releases",
-      names: {
-        en: "New releases",
-        de: "Neuerscheinungen",
-        es: "Novedades",
-        fr: "Nouveaut\xE9s",
-        it: "Novit\xE0",
-        pt: "Novidades",
-        nl: "Nieuw verschenen",
-        zh: "\u65B0\u54C1"
-      },
-      group: "charts",
-      groupNames: {
-        en: "Charts",
-        de: "Charts",
-        es: "Listas",
-        fr: "Classements",
-        it: "Classifiche",
-        pt: "Tops",
-        nl: "Hitlijsten",
-        zh: "\u6392\u884C\u699C"
       }
     },
     {

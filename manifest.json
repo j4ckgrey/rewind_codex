@@ -1,7 +1,7 @@
 {
   "id": "rewind.codex",
   "name": "The Codex",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Book + audiobook metadata for Rewind — one search across Hardcover, Google Books, Open Library and Audible (Audnexus), merged: covers, authors, narrators, series, descriptions, chapters. Powers the Books space; The Forge finds the releases.",
   "resources": [
     "search",
@@ -138,6 +138,58 @@
         "pt": "Em alta",
         "nl": "Trending",
         "zh": "热门"
+      }
+    },
+    {
+      "id": "bestsellers",
+      "type": "audiobook",
+      "name": "Bestsellers",
+      "names": {
+        "en": "Bestsellers",
+        "de": "Bestseller",
+        "es": "Más vendidos",
+        "fr": "Meilleures ventes",
+        "it": "Più venduti",
+        "pt": "Mais vendidos",
+        "nl": "Bestsellers",
+        "zh": "畅销榜"
+      },
+      "group": "charts",
+      "groupNames": {
+        "en": "Charts",
+        "de": "Charts",
+        "es": "Listas",
+        "fr": "Classements",
+        "it": "Classifiche",
+        "pt": "Tops",
+        "nl": "Hitlijsten",
+        "zh": "排行榜"
+      }
+    },
+    {
+      "id": "new-releases",
+      "type": "audiobook",
+      "name": "New releases",
+      "names": {
+        "en": "New releases",
+        "de": "Neuerscheinungen",
+        "es": "Novedades",
+        "fr": "Nouveautés",
+        "it": "Novità",
+        "pt": "Novidades",
+        "nl": "Nieuw verschenen",
+        "zh": "新品"
+      },
+      "group": "charts",
+      "groupNames": {
+        "en": "Charts",
+        "de": "Charts",
+        "es": "Listas",
+        "fr": "Classements",
+        "it": "Classifiche",
+        "pt": "Tops",
+        "nl": "Hitlijsten",
+        "zh": "排行榜"
       }
     },
     {
@@ -398,58 +450,6 @@
         "pt": "Géneros",
         "nl": "Genres",
         "zh": "类型"
-      }
-    },
-    {
-      "id": "bestsellers",
-      "type": "audiobook",
-      "name": "Bestsellers",
-      "names": {
-        "en": "Bestsellers",
-        "de": "Bestseller",
-        "es": "Más vendidos",
-        "fr": "Meilleures ventes",
-        "it": "Più venduti",
-        "pt": "Mais vendidos",
-        "nl": "Bestsellers",
-        "zh": "畅销榜"
-      },
-      "group": "charts",
-      "groupNames": {
-        "en": "Charts",
-        "de": "Charts",
-        "es": "Listas",
-        "fr": "Classements",
-        "it": "Classifiche",
-        "pt": "Tops",
-        "nl": "Hitlijsten",
-        "zh": "排行榜"
-      }
-    },
-    {
-      "id": "new-releases",
-      "type": "audiobook",
-      "name": "New releases",
-      "names": {
-        "en": "New releases",
-        "de": "Neuerscheinungen",
-        "es": "Novedades",
-        "fr": "Nouveautés",
-        "it": "Novità",
-        "pt": "Novidades",
-        "nl": "Nieuw verschenen",
-        "zh": "新品"
-      },
-      "group": "charts",
-      "groupNames": {
-        "en": "Charts",
-        "de": "Charts",
-        "es": "Listas",
-        "fr": "Classements",
-        "it": "Classifiche",
-        "pt": "Tops",
-        "nl": "Hitlijsten",
-        "zh": "排行榜"
       }
     },
     {
