@@ -310,6 +310,13 @@ var audible = {
     return book ? mapAudnex(book, chapters?.chapters) : null;
   }
 };
+async function audibleBrowse(sort, lang2, keywords, limit = 40) {
+  const { tld } = storeFor(lang2);
+  const params = new URLSearchParams({ num_results: String(Math.min(50, limit)), products_sort_by: sort, response_groups: GROUPS });
+  if (keywords) params.set("keywords", keywords);
+  const j = await getJson(`https://api.audible${tld}/1.0/catalog/products?${params}`);
+  return (j?.products ?? []).map(mapProduct).filter((b) => !!b);
+}
 
 // src/providers/googleBooks.ts
 var BASE = "https://www.googleapis.com/books/v1/volumes";
@@ -504,6 +511,22 @@ var openLibrary = {
     return mapWork2(w, names2.filter((n) => !!n));
   }
 };
+async function olTrending(period, limit = 40) {
+  const j = await getJson(`${BASE2}/trending/${period}.json?limit=${limit}`);
+  return (j?.works ?? []).map(mapSearchDoc).filter((b) => !!b);
+}
+async function olSubject(subject, limit = 40) {
+  const j = await getJson(`${BASE2}/subjects/${encodeURIComponent(subject)}.json?limit=${limit}`);
+  return (j?.works ?? []).map(
+    (w) => mapSearchDoc({
+      key: w.key,
+      title: w.title,
+      cover_i: w.cover_id,
+      first_publish_year: w.first_publish_year,
+      author_name: (w.authors ?? []).map((a) => a.name).filter((n) => !!n)
+    })
+  ).filter((b) => !!b);
+}
 
 // src/codex.ts
 var PROVIDERS = [hardcover, audible, googleBooks, openLibrary];
@@ -538,10 +561,10 @@ function parseId(id) {
 async function getBook(id, kind, lang2) {
   const parsed = parseId(id);
   if (!parsed) return null;
-  const cache = detailCache();
-  await cache.ready();
+  const cache2 = detailCache();
+  await cache2.ready();
   const cacheKey = `${kind}|${id}`;
-  const cached = cache.get(cacheKey);
+  const cached = cache2.get(cacheKey);
   if (cached) return cached;
   const cfg = await codexConfig();
   const provider = byName.get(parsed.provider);
@@ -556,8 +579,132 @@ async function getBook(id, kind, lang2) {
     others.map((p) => p.search(query, { ...opts, limit: 8 }, cfg).then((list) => list.filter((b) => groupKey(b) === key)).catch(() => []))
   );
   const merged = { ...mergeGroup([primary, ...extra.flat()], kind), id: primary.id };
-  cache.set(cacheKey, merged, 7 * DAY);
+  cache2.set(cacheKey, merged, 7 * DAY);
   return merged;
+}
+
+// src/discover.ts
+import path3 from "node:path";
+var GENRES = [
+  { id: "fantasy", ol: "fantasy", audible: { en: "fantasy", de: "Fantasy" }, names: { en: "Fantasy", de: "Fantasy", es: "Fantas\xEDa", fr: "Fantasy", it: "Fantasy", pt: "Fantasia", nl: "Fantasy", zh: "\u5947\u5E7B" } },
+  { id: "science_fiction", ol: "science_fiction", audible: { en: "science fiction", de: "Science-Fiction" }, names: { en: "Science fiction", de: "Science-Fiction", es: "Ciencia ficci\xF3n", fr: "Science-fiction", it: "Fantascienza", pt: "Fic\xE7\xE3o cient\xEDfica", nl: "Sciencefiction", zh: "\u79D1\u5E7B" } },
+  { id: "thriller", ol: "thriller", audible: { en: "thriller", de: "Thriller" }, names: { en: "Thrillers", de: "Thriller", es: "Suspense", fr: "Thrillers", it: "Thriller", pt: "Thrillers", nl: "Thrillers", zh: "\u60CA\u609A" } },
+  { id: "mystery", ol: "mystery_and_detective_stories", audible: { en: "mystery", de: "Krimi" }, names: { en: "Mystery & crime", de: "Krimis", es: "Misterio y crimen", fr: "Polars", it: "Gialli", pt: "Policiais", nl: "Misdaad", zh: "\u63A8\u7406" } },
+  { id: "romance", ol: "romance", audible: { en: "romance", de: "Liebesroman" }, names: { en: "Romance", de: "Liebesromane", es: "Rom\xE1ntica", fr: "Romance", it: "Romanzi rosa", pt: "Romance", nl: "Romantiek", zh: "\u8A00\u60C5" } },
+  { id: "horror", ol: "horror", audible: { en: "horror", de: "Horror" }, names: { en: "Horror", de: "Horror", es: "Terror", fr: "Horreur", it: "Horror", pt: "Terror", nl: "Horror", zh: "\u6050\u6016" } },
+  { id: "historical", ol: "historical_fiction", audible: { en: "historical fiction", de: "historischer Roman" }, names: { en: "Historical fiction", de: "Historische Romane", es: "Novela hist\xF3rica", fr: "Romans historiques", it: "Romanzi storici", pt: "Fic\xE7\xE3o hist\xF3rica", nl: "Historische romans", zh: "\u5386\u53F2\u5C0F\u8BF4" } },
+  { id: "biography", ol: "biography", audible: { en: "biography", de: "Biografie" }, names: { en: "Biographies", de: "Biografien", es: "Biograf\xEDas", fr: "Biographies", it: "Biografie", pt: "Biografias", nl: "Biografie\xEBn", zh: "\u4F20\u8BB0" } },
+  { id: "self_help", ol: "self-help", audible: { en: "self help", de: "Ratgeber" }, names: { en: "Self-help", de: "Ratgeber", es: "Autoayuda", fr: "D\xE9veloppement personnel", it: "Crescita personale", pt: "Autoajuda", nl: "Zelfhulp", zh: "\u81EA\u6211\u63D0\u5347" } },
+  { id: "children", ol: "children", audible: { en: "kids", de: "Kinder" }, names: { en: "Kids", de: "Kinder", es: "Infantil", fr: "Enfants", it: "Bambini", pt: "Infantil", nl: "Kinderen", zh: "\u513F\u7AE5" } }
+];
+var DISCOVER_LISTS = [
+  {
+    id: "trending-week",
+    kind: "book",
+    group: "trending",
+    perLanguage: false,
+    fetch: () => olTrending("weekly"),
+    name: "Trending this week",
+    names: { en: "Trending this week", de: "Diese Woche im Trend", es: "Tendencia esta semana", fr: "Tendance cette semaine", it: "Di tendenza questa settimana", pt: "Em alta esta semana", nl: "Trending deze week", zh: "\u672C\u5468\u70ED\u95E8" }
+  },
+  {
+    id: "trending-month",
+    kind: "book",
+    group: "trending",
+    perLanguage: false,
+    fetch: () => olTrending("monthly"),
+    name: "Trending this month",
+    names: { en: "Trending this month", de: "Diesen Monat im Trend", es: "Tendencia este mes", fr: "Tendance ce mois-ci", it: "Di tendenza questo mese", pt: "Em alta este m\xEAs", nl: "Trending deze maand", zh: "\u672C\u6708\u70ED\u95E8" }
+  },
+  {
+    id: "popular-year",
+    kind: "book",
+    group: "trending",
+    perLanguage: false,
+    fetch: () => olTrending("yearly"),
+    name: "Most read this year",
+    names: { en: "Most read this year", de: "Meistgelesen dieses Jahr", es: "Lo m\xE1s le\xEDdo del a\xF1o", fr: "Les plus lus de l'ann\xE9e", it: "I pi\xF9 letti dell'anno", pt: "Os mais lidos do ano", nl: "Meest gelezen dit jaar", zh: "\u5E74\u5EA6\u6700\u5E38\u8BFB" }
+  },
+  ...GENRES.map((g) => ({
+    id: `genre-${g.id}`,
+    kind: "book",
+    group: "genres",
+    perLanguage: false,
+    fetch: () => olSubject(g.ol),
+    name: g.names.en,
+    names: g.names
+  })),
+  {
+    id: "bestsellers",
+    kind: "audiobook",
+    group: "charts",
+    perLanguage: true,
+    fetch: (lang2) => audibleBrowse("BestSellers", lang2),
+    name: "Bestsellers",
+    names: { en: "Bestsellers", de: "Bestseller", es: "M\xE1s vendidos", fr: "Meilleures ventes", it: "Pi\xF9 venduti", pt: "Mais vendidos", nl: "Bestsellers", zh: "\u7545\u9500\u699C" }
+  },
+  {
+    id: "new-releases",
+    kind: "audiobook",
+    group: "charts",
+    perLanguage: true,
+    fetch: (lang2) => audibleBrowse("-ReleaseDate", lang2),
+    name: "New releases",
+    names: { en: "New releases", de: "Neuerscheinungen", es: "Novedades", fr: "Nouveaut\xE9s", it: "Novit\xE0", pt: "Novidades", nl: "Nieuw verschenen", zh: "\u65B0\u54C1" }
+  },
+  ...GENRES.map((g) => ({
+    id: `genre-${g.id}`,
+    kind: "audiobook",
+    group: "genres",
+    perLanguage: true,
+    fetch: (lang2) => audibleBrowse("BestSellers", lang2, g.audible[lang2.slice(0, 2)] ?? g.audible.en),
+    name: g.names.en,
+    names: g.names
+  }))
+];
+var WEEK = 7 * 864e5;
+var cache = null;
+var seenLangs = /* @__PURE__ */ new Set(["en"]);
+function store() {
+  if (!cache) {
+    const dir = hasCodexHost() ? getCodexHost().dataDir : void 0;
+    cache = new PersistedCache(400, dir ? path3.join(dir, "addons", "codex", "discover.json") : null);
+  }
+  return cache;
+}
+var keyOf2 = (l, lang2) => `${l.kind}|${l.id}|${l.perLanguage ? lang2 : "*"}`;
+function findList(kind, id) {
+  return DISCOVER_LISTS.find((l) => l.kind === kind && l.id === id);
+}
+async function discoverList(kind, id, lang2 = "en") {
+  const list = findList(kind, id);
+  if (!list) return [];
+  const short = lang2.slice(0, 2) || "en";
+  seenLangs.add(short);
+  const c = store();
+  await c.ready();
+  const hit = c.get(keyOf2(list, short));
+  if (hit) return hit;
+  const books = await list.fetch(short).catch(() => []);
+  if (books.length) c.set(keyOf2(list, short), books, 8 * 24 * 36e5);
+  return books;
+}
+async function refreshDiscover() {
+  const c = store();
+  await c.ready();
+  let lists = 0;
+  let books = 0;
+  for (const list of DISCOVER_LISTS) {
+    for (const lang2 of list.perLanguage ? [...seenLangs] : ["en"]) {
+      const fresh = await list.fetch(lang2).catch(() => []);
+      if (!fresh.length) continue;
+      c.set(keyOf2(list, lang2), fresh, WEEK + 864e5);
+      lists++;
+      books += fresh.length;
+    }
+  }
+  logger.info("books", `Discover refreshed: ${lists} lists, ${books} books`);
+  return { lists, books };
 }
 
 // src/resources.ts
@@ -605,6 +752,18 @@ var resources = {
     const b = await getBook(req.id, kindOf(req), lang(req));
     return { meta: b ? toMeta(b) : null };
   },
+  /** Discover lists (manifest `catalogs`): id = list id. */
+  async catalog(req) {
+    return { metas: (await discoverList(kindOf(req), req.id, lang(req))).map(toMeta) };
+  },
+  /** Automations declared in the manifest. */
+  async automation(req) {
+    if (req.id === "refresh-discover") {
+      const r = await refreshDiscover();
+      return { ok: true, message: `${r.lists} lists, ${r.books} books` };
+    }
+    throw new Error(`unknown automation "${req.id}"`);
+  },
   async artwork(req) {
     const b = await getBook(req.id, kindOf(req), lang(req));
     return { artwork: { poster: b?.cover ?? null } };
@@ -620,7 +779,9 @@ var manifest_default = {
   resources: [
     "search",
     "meta",
-    "artwork"
+    "artwork",
+    "catalog",
+    "automation"
   ],
   types: [
     "book",
@@ -663,8 +824,668 @@ var manifest_default = {
     ],
     features: [
       "books"
+    ],
+    automations: [
+      {
+        id: "refresh-discover",
+        name: "Refresh book Discover lists",
+        description: "Rebuilds the Books Discover page \u2014 trending, bestsellers, new releases and genre shelves \u2014 from Open Library and Audible.",
+        intervalMinutes: 10080
+      }
     ]
-  }
+  },
+  catalogs: [
+    {
+      id: "trending-week",
+      type: "book",
+      name: "Trending this week",
+      names: {
+        en: "Trending this week",
+        de: "Diese Woche im Trend",
+        es: "Tendencia esta semana",
+        fr: "Tendance cette semaine",
+        it: "Di tendenza questa settimana",
+        pt: "Em alta esta semana",
+        nl: "Trending deze week",
+        zh: "\u672C\u5468\u70ED\u95E8"
+      },
+      group: "trending",
+      groupNames: {
+        en: "Trending",
+        de: "Im Trend",
+        es: "Tendencias",
+        fr: "Tendances",
+        it: "Di tendenza",
+        pt: "Em alta",
+        nl: "Trending",
+        zh: "\u70ED\u95E8"
+      }
+    },
+    {
+      id: "trending-month",
+      type: "book",
+      name: "Trending this month",
+      names: {
+        en: "Trending this month",
+        de: "Diesen Monat im Trend",
+        es: "Tendencia este mes",
+        fr: "Tendance ce mois-ci",
+        it: "Di tendenza questo mese",
+        pt: "Em alta este m\xEAs",
+        nl: "Trending deze maand",
+        zh: "\u672C\u6708\u70ED\u95E8"
+      },
+      group: "trending",
+      groupNames: {
+        en: "Trending",
+        de: "Im Trend",
+        es: "Tendencias",
+        fr: "Tendances",
+        it: "Di tendenza",
+        pt: "Em alta",
+        nl: "Trending",
+        zh: "\u70ED\u95E8"
+      }
+    },
+    {
+      id: "popular-year",
+      type: "book",
+      name: "Most read this year",
+      names: {
+        en: "Most read this year",
+        de: "Meistgelesen dieses Jahr",
+        es: "Lo m\xE1s le\xEDdo del a\xF1o",
+        fr: "Les plus lus de l'ann\xE9e",
+        it: "I pi\xF9 letti dell'anno",
+        pt: "Os mais lidos do ano",
+        nl: "Meest gelezen dit jaar",
+        zh: "\u5E74\u5EA6\u6700\u5E38\u8BFB"
+      },
+      group: "trending",
+      groupNames: {
+        en: "Trending",
+        de: "Im Trend",
+        es: "Tendencias",
+        fr: "Tendances",
+        it: "Di tendenza",
+        pt: "Em alta",
+        nl: "Trending",
+        zh: "\u70ED\u95E8"
+      }
+    },
+    {
+      id: "genre-fantasy",
+      type: "book",
+      name: "Fantasy",
+      names: {
+        en: "Fantasy",
+        de: "Fantasy",
+        es: "Fantas\xEDa",
+        fr: "Fantasy",
+        it: "Fantasy",
+        pt: "Fantasia",
+        nl: "Fantasy",
+        zh: "\u5947\u5E7B"
+      },
+      group: "genres",
+      groupNames: {
+        en: "Genres",
+        de: "Genres",
+        es: "G\xE9neros",
+        fr: "Genres",
+        it: "Generi",
+        pt: "G\xE9neros",
+        nl: "Genres",
+        zh: "\u7C7B\u578B"
+      }
+    },
+    {
+      id: "genre-science_fiction",
+      type: "book",
+      name: "Science fiction",
+      names: {
+        en: "Science fiction",
+        de: "Science-Fiction",
+        es: "Ciencia ficci\xF3n",
+        fr: "Science-fiction",
+        it: "Fantascienza",
+        pt: "Fic\xE7\xE3o cient\xEDfica",
+        nl: "Sciencefiction",
+        zh: "\u79D1\u5E7B"
+      },
+      group: "genres",
+      groupNames: {
+        en: "Genres",
+        de: "Genres",
+        es: "G\xE9neros",
+        fr: "Genres",
+        it: "Generi",
+        pt: "G\xE9neros",
+        nl: "Genres",
+        zh: "\u7C7B\u578B"
+      }
+    },
+    {
+      id: "genre-thriller",
+      type: "book",
+      name: "Thrillers",
+      names: {
+        en: "Thrillers",
+        de: "Thriller",
+        es: "Suspense",
+        fr: "Thrillers",
+        it: "Thriller",
+        pt: "Thrillers",
+        nl: "Thrillers",
+        zh: "\u60CA\u609A"
+      },
+      group: "genres",
+      groupNames: {
+        en: "Genres",
+        de: "Genres",
+        es: "G\xE9neros",
+        fr: "Genres",
+        it: "Generi",
+        pt: "G\xE9neros",
+        nl: "Genres",
+        zh: "\u7C7B\u578B"
+      }
+    },
+    {
+      id: "genre-mystery",
+      type: "book",
+      name: "Mystery & crime",
+      names: {
+        en: "Mystery & crime",
+        de: "Krimis",
+        es: "Misterio y crimen",
+        fr: "Polars",
+        it: "Gialli",
+        pt: "Policiais",
+        nl: "Misdaad",
+        zh: "\u63A8\u7406"
+      },
+      group: "genres",
+      groupNames: {
+        en: "Genres",
+        de: "Genres",
+        es: "G\xE9neros",
+        fr: "Genres",
+        it: "Generi",
+        pt: "G\xE9neros",
+        nl: "Genres",
+        zh: "\u7C7B\u578B"
+      }
+    },
+    {
+      id: "genre-romance",
+      type: "book",
+      name: "Romance",
+      names: {
+        en: "Romance",
+        de: "Liebesromane",
+        es: "Rom\xE1ntica",
+        fr: "Romance",
+        it: "Romanzi rosa",
+        pt: "Romance",
+        nl: "Romantiek",
+        zh: "\u8A00\u60C5"
+      },
+      group: "genres",
+      groupNames: {
+        en: "Genres",
+        de: "Genres",
+        es: "G\xE9neros",
+        fr: "Genres",
+        it: "Generi",
+        pt: "G\xE9neros",
+        nl: "Genres",
+        zh: "\u7C7B\u578B"
+      }
+    },
+    {
+      id: "genre-horror",
+      type: "book",
+      name: "Horror",
+      names: {
+        en: "Horror",
+        de: "Horror",
+        es: "Terror",
+        fr: "Horreur",
+        it: "Horror",
+        pt: "Terror",
+        nl: "Horror",
+        zh: "\u6050\u6016"
+      },
+      group: "genres",
+      groupNames: {
+        en: "Genres",
+        de: "Genres",
+        es: "G\xE9neros",
+        fr: "Genres",
+        it: "Generi",
+        pt: "G\xE9neros",
+        nl: "Genres",
+        zh: "\u7C7B\u578B"
+      }
+    },
+    {
+      id: "genre-historical",
+      type: "book",
+      name: "Historical fiction",
+      names: {
+        en: "Historical fiction",
+        de: "Historische Romane",
+        es: "Novela hist\xF3rica",
+        fr: "Romans historiques",
+        it: "Romanzi storici",
+        pt: "Fic\xE7\xE3o hist\xF3rica",
+        nl: "Historische romans",
+        zh: "\u5386\u53F2\u5C0F\u8BF4"
+      },
+      group: "genres",
+      groupNames: {
+        en: "Genres",
+        de: "Genres",
+        es: "G\xE9neros",
+        fr: "Genres",
+        it: "Generi",
+        pt: "G\xE9neros",
+        nl: "Genres",
+        zh: "\u7C7B\u578B"
+      }
+    },
+    {
+      id: "genre-biography",
+      type: "book",
+      name: "Biographies",
+      names: {
+        en: "Biographies",
+        de: "Biografien",
+        es: "Biograf\xEDas",
+        fr: "Biographies",
+        it: "Biografie",
+        pt: "Biografias",
+        nl: "Biografie\xEBn",
+        zh: "\u4F20\u8BB0"
+      },
+      group: "genres",
+      groupNames: {
+        en: "Genres",
+        de: "Genres",
+        es: "G\xE9neros",
+        fr: "Genres",
+        it: "Generi",
+        pt: "G\xE9neros",
+        nl: "Genres",
+        zh: "\u7C7B\u578B"
+      }
+    },
+    {
+      id: "genre-self_help",
+      type: "book",
+      name: "Self-help",
+      names: {
+        en: "Self-help",
+        de: "Ratgeber",
+        es: "Autoayuda",
+        fr: "D\xE9veloppement personnel",
+        it: "Crescita personale",
+        pt: "Autoajuda",
+        nl: "Zelfhulp",
+        zh: "\u81EA\u6211\u63D0\u5347"
+      },
+      group: "genres",
+      groupNames: {
+        en: "Genres",
+        de: "Genres",
+        es: "G\xE9neros",
+        fr: "Genres",
+        it: "Generi",
+        pt: "G\xE9neros",
+        nl: "Genres",
+        zh: "\u7C7B\u578B"
+      }
+    },
+    {
+      id: "genre-children",
+      type: "book",
+      name: "Kids",
+      names: {
+        en: "Kids",
+        de: "Kinder",
+        es: "Infantil",
+        fr: "Enfants",
+        it: "Bambini",
+        pt: "Infantil",
+        nl: "Kinderen",
+        zh: "\u513F\u7AE5"
+      },
+      group: "genres",
+      groupNames: {
+        en: "Genres",
+        de: "Genres",
+        es: "G\xE9neros",
+        fr: "Genres",
+        it: "Generi",
+        pt: "G\xE9neros",
+        nl: "Genres",
+        zh: "\u7C7B\u578B"
+      }
+    },
+    {
+      id: "bestsellers",
+      type: "audiobook",
+      name: "Bestsellers",
+      names: {
+        en: "Bestsellers",
+        de: "Bestseller",
+        es: "M\xE1s vendidos",
+        fr: "Meilleures ventes",
+        it: "Pi\xF9 venduti",
+        pt: "Mais vendidos",
+        nl: "Bestsellers",
+        zh: "\u7545\u9500\u699C"
+      },
+      group: "charts",
+      groupNames: {
+        en: "Charts",
+        de: "Charts",
+        es: "Listas",
+        fr: "Classements",
+        it: "Classifiche",
+        pt: "Tops",
+        nl: "Hitlijsten",
+        zh: "\u6392\u884C\u699C"
+      }
+    },
+    {
+      id: "new-releases",
+      type: "audiobook",
+      name: "New releases",
+      names: {
+        en: "New releases",
+        de: "Neuerscheinungen",
+        es: "Novedades",
+        fr: "Nouveaut\xE9s",
+        it: "Novit\xE0",
+        pt: "Novidades",
+        nl: "Nieuw verschenen",
+        zh: "\u65B0\u54C1"
+      },
+      group: "charts",
+      groupNames: {
+        en: "Charts",
+        de: "Charts",
+        es: "Listas",
+        fr: "Classements",
+        it: "Classifiche",
+        pt: "Tops",
+        nl: "Hitlijsten",
+        zh: "\u6392\u884C\u699C"
+      }
+    },
+    {
+      id: "genre-fantasy",
+      type: "audiobook",
+      name: "Fantasy",
+      names: {
+        en: "Fantasy",
+        de: "Fantasy",
+        es: "Fantas\xEDa",
+        fr: "Fantasy",
+        it: "Fantasy",
+        pt: "Fantasia",
+        nl: "Fantasy",
+        zh: "\u5947\u5E7B"
+      },
+      group: "genres",
+      groupNames: {
+        en: "Genres",
+        de: "Genres",
+        es: "G\xE9neros",
+        fr: "Genres",
+        it: "Generi",
+        pt: "G\xE9neros",
+        nl: "Genres",
+        zh: "\u7C7B\u578B"
+      }
+    },
+    {
+      id: "genre-science_fiction",
+      type: "audiobook",
+      name: "Science fiction",
+      names: {
+        en: "Science fiction",
+        de: "Science-Fiction",
+        es: "Ciencia ficci\xF3n",
+        fr: "Science-fiction",
+        it: "Fantascienza",
+        pt: "Fic\xE7\xE3o cient\xEDfica",
+        nl: "Sciencefiction",
+        zh: "\u79D1\u5E7B"
+      },
+      group: "genres",
+      groupNames: {
+        en: "Genres",
+        de: "Genres",
+        es: "G\xE9neros",
+        fr: "Genres",
+        it: "Generi",
+        pt: "G\xE9neros",
+        nl: "Genres",
+        zh: "\u7C7B\u578B"
+      }
+    },
+    {
+      id: "genre-thriller",
+      type: "audiobook",
+      name: "Thrillers",
+      names: {
+        en: "Thrillers",
+        de: "Thriller",
+        es: "Suspense",
+        fr: "Thrillers",
+        it: "Thriller",
+        pt: "Thrillers",
+        nl: "Thrillers",
+        zh: "\u60CA\u609A"
+      },
+      group: "genres",
+      groupNames: {
+        en: "Genres",
+        de: "Genres",
+        es: "G\xE9neros",
+        fr: "Genres",
+        it: "Generi",
+        pt: "G\xE9neros",
+        nl: "Genres",
+        zh: "\u7C7B\u578B"
+      }
+    },
+    {
+      id: "genre-mystery",
+      type: "audiobook",
+      name: "Mystery & crime",
+      names: {
+        en: "Mystery & crime",
+        de: "Krimis",
+        es: "Misterio y crimen",
+        fr: "Polars",
+        it: "Gialli",
+        pt: "Policiais",
+        nl: "Misdaad",
+        zh: "\u63A8\u7406"
+      },
+      group: "genres",
+      groupNames: {
+        en: "Genres",
+        de: "Genres",
+        es: "G\xE9neros",
+        fr: "Genres",
+        it: "Generi",
+        pt: "G\xE9neros",
+        nl: "Genres",
+        zh: "\u7C7B\u578B"
+      }
+    },
+    {
+      id: "genre-romance",
+      type: "audiobook",
+      name: "Romance",
+      names: {
+        en: "Romance",
+        de: "Liebesromane",
+        es: "Rom\xE1ntica",
+        fr: "Romance",
+        it: "Romanzi rosa",
+        pt: "Romance",
+        nl: "Romantiek",
+        zh: "\u8A00\u60C5"
+      },
+      group: "genres",
+      groupNames: {
+        en: "Genres",
+        de: "Genres",
+        es: "G\xE9neros",
+        fr: "Genres",
+        it: "Generi",
+        pt: "G\xE9neros",
+        nl: "Genres",
+        zh: "\u7C7B\u578B"
+      }
+    },
+    {
+      id: "genre-horror",
+      type: "audiobook",
+      name: "Horror",
+      names: {
+        en: "Horror",
+        de: "Horror",
+        es: "Terror",
+        fr: "Horreur",
+        it: "Horror",
+        pt: "Terror",
+        nl: "Horror",
+        zh: "\u6050\u6016"
+      },
+      group: "genres",
+      groupNames: {
+        en: "Genres",
+        de: "Genres",
+        es: "G\xE9neros",
+        fr: "Genres",
+        it: "Generi",
+        pt: "G\xE9neros",
+        nl: "Genres",
+        zh: "\u7C7B\u578B"
+      }
+    },
+    {
+      id: "genre-historical",
+      type: "audiobook",
+      name: "Historical fiction",
+      names: {
+        en: "Historical fiction",
+        de: "Historische Romane",
+        es: "Novela hist\xF3rica",
+        fr: "Romans historiques",
+        it: "Romanzi storici",
+        pt: "Fic\xE7\xE3o hist\xF3rica",
+        nl: "Historische romans",
+        zh: "\u5386\u53F2\u5C0F\u8BF4"
+      },
+      group: "genres",
+      groupNames: {
+        en: "Genres",
+        de: "Genres",
+        es: "G\xE9neros",
+        fr: "Genres",
+        it: "Generi",
+        pt: "G\xE9neros",
+        nl: "Genres",
+        zh: "\u7C7B\u578B"
+      }
+    },
+    {
+      id: "genre-biography",
+      type: "audiobook",
+      name: "Biographies",
+      names: {
+        en: "Biographies",
+        de: "Biografien",
+        es: "Biograf\xEDas",
+        fr: "Biographies",
+        it: "Biografie",
+        pt: "Biografias",
+        nl: "Biografie\xEBn",
+        zh: "\u4F20\u8BB0"
+      },
+      group: "genres",
+      groupNames: {
+        en: "Genres",
+        de: "Genres",
+        es: "G\xE9neros",
+        fr: "Genres",
+        it: "Generi",
+        pt: "G\xE9neros",
+        nl: "Genres",
+        zh: "\u7C7B\u578B"
+      }
+    },
+    {
+      id: "genre-self_help",
+      type: "audiobook",
+      name: "Self-help",
+      names: {
+        en: "Self-help",
+        de: "Ratgeber",
+        es: "Autoayuda",
+        fr: "D\xE9veloppement personnel",
+        it: "Crescita personale",
+        pt: "Autoajuda",
+        nl: "Zelfhulp",
+        zh: "\u81EA\u6211\u63D0\u5347"
+      },
+      group: "genres",
+      groupNames: {
+        en: "Genres",
+        de: "Genres",
+        es: "G\xE9neros",
+        fr: "Genres",
+        it: "Generi",
+        pt: "G\xE9neros",
+        nl: "Genres",
+        zh: "\u7C7B\u578B"
+      }
+    },
+    {
+      id: "genre-children",
+      type: "audiobook",
+      name: "Kids",
+      names: {
+        en: "Kids",
+        de: "Kinder",
+        es: "Infantil",
+        fr: "Enfants",
+        it: "Bambini",
+        pt: "Infantil",
+        nl: "Kinderen",
+        zh: "\u513F\u7AE5"
+      },
+      group: "genres",
+      groupNames: {
+        en: "Genres",
+        de: "Genres",
+        es: "G\xE9neros",
+        fr: "Genres",
+        it: "Generi",
+        pt: "G\xE9neros",
+        nl: "Genres",
+        zh: "\u7C7B\u578B"
+      }
+    }
+  ]
 };
 
 // src/plugin.ts

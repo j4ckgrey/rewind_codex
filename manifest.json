@@ -6,7 +6,9 @@
   "resources": [
     "search",
     "meta",
-    "artwork"
+    "artwork",
+    "catalog",
+    "automation"
   ],
   "types": [
     "book",
@@ -49,6 +51,666 @@
     ],
     "features": [
       "books"
+    ],
+    "automations": [
+      {
+        "id": "refresh-discover",
+        "name": "Refresh book Discover lists",
+        "description": "Rebuilds the Books Discover page — trending, bestsellers, new releases and genre shelves — from Open Library and Audible.",
+        "intervalMinutes": 10080
+      }
     ]
-  }
+  },
+  "catalogs": [
+    {
+      "id": "trending-week",
+      "type": "book",
+      "name": "Trending this week",
+      "names": {
+        "en": "Trending this week",
+        "de": "Diese Woche im Trend",
+        "es": "Tendencia esta semana",
+        "fr": "Tendance cette semaine",
+        "it": "Di tendenza questa settimana",
+        "pt": "Em alta esta semana",
+        "nl": "Trending deze week",
+        "zh": "本周热门"
+      },
+      "group": "trending",
+      "groupNames": {
+        "en": "Trending",
+        "de": "Im Trend",
+        "es": "Tendencias",
+        "fr": "Tendances",
+        "it": "Di tendenza",
+        "pt": "Em alta",
+        "nl": "Trending",
+        "zh": "热门"
+      }
+    },
+    {
+      "id": "trending-month",
+      "type": "book",
+      "name": "Trending this month",
+      "names": {
+        "en": "Trending this month",
+        "de": "Diesen Monat im Trend",
+        "es": "Tendencia este mes",
+        "fr": "Tendance ce mois-ci",
+        "it": "Di tendenza questo mese",
+        "pt": "Em alta este mês",
+        "nl": "Trending deze maand",
+        "zh": "本月热门"
+      },
+      "group": "trending",
+      "groupNames": {
+        "en": "Trending",
+        "de": "Im Trend",
+        "es": "Tendencias",
+        "fr": "Tendances",
+        "it": "Di tendenza",
+        "pt": "Em alta",
+        "nl": "Trending",
+        "zh": "热门"
+      }
+    },
+    {
+      "id": "popular-year",
+      "type": "book",
+      "name": "Most read this year",
+      "names": {
+        "en": "Most read this year",
+        "de": "Meistgelesen dieses Jahr",
+        "es": "Lo más leído del año",
+        "fr": "Les plus lus de l'année",
+        "it": "I più letti dell'anno",
+        "pt": "Os mais lidos do ano",
+        "nl": "Meest gelezen dit jaar",
+        "zh": "年度最常读"
+      },
+      "group": "trending",
+      "groupNames": {
+        "en": "Trending",
+        "de": "Im Trend",
+        "es": "Tendencias",
+        "fr": "Tendances",
+        "it": "Di tendenza",
+        "pt": "Em alta",
+        "nl": "Trending",
+        "zh": "热门"
+      }
+    },
+    {
+      "id": "genre-fantasy",
+      "type": "book",
+      "name": "Fantasy",
+      "names": {
+        "en": "Fantasy",
+        "de": "Fantasy",
+        "es": "Fantasía",
+        "fr": "Fantasy",
+        "it": "Fantasy",
+        "pt": "Fantasia",
+        "nl": "Fantasy",
+        "zh": "奇幻"
+      },
+      "group": "genres",
+      "groupNames": {
+        "en": "Genres",
+        "de": "Genres",
+        "es": "Géneros",
+        "fr": "Genres",
+        "it": "Generi",
+        "pt": "Géneros",
+        "nl": "Genres",
+        "zh": "类型"
+      }
+    },
+    {
+      "id": "genre-science_fiction",
+      "type": "book",
+      "name": "Science fiction",
+      "names": {
+        "en": "Science fiction",
+        "de": "Science-Fiction",
+        "es": "Ciencia ficción",
+        "fr": "Science-fiction",
+        "it": "Fantascienza",
+        "pt": "Ficção científica",
+        "nl": "Sciencefiction",
+        "zh": "科幻"
+      },
+      "group": "genres",
+      "groupNames": {
+        "en": "Genres",
+        "de": "Genres",
+        "es": "Géneros",
+        "fr": "Genres",
+        "it": "Generi",
+        "pt": "Géneros",
+        "nl": "Genres",
+        "zh": "类型"
+      }
+    },
+    {
+      "id": "genre-thriller",
+      "type": "book",
+      "name": "Thrillers",
+      "names": {
+        "en": "Thrillers",
+        "de": "Thriller",
+        "es": "Suspense",
+        "fr": "Thrillers",
+        "it": "Thriller",
+        "pt": "Thrillers",
+        "nl": "Thrillers",
+        "zh": "惊悚"
+      },
+      "group": "genres",
+      "groupNames": {
+        "en": "Genres",
+        "de": "Genres",
+        "es": "Géneros",
+        "fr": "Genres",
+        "it": "Generi",
+        "pt": "Géneros",
+        "nl": "Genres",
+        "zh": "类型"
+      }
+    },
+    {
+      "id": "genre-mystery",
+      "type": "book",
+      "name": "Mystery & crime",
+      "names": {
+        "en": "Mystery & crime",
+        "de": "Krimis",
+        "es": "Misterio y crimen",
+        "fr": "Polars",
+        "it": "Gialli",
+        "pt": "Policiais",
+        "nl": "Misdaad",
+        "zh": "推理"
+      },
+      "group": "genres",
+      "groupNames": {
+        "en": "Genres",
+        "de": "Genres",
+        "es": "Géneros",
+        "fr": "Genres",
+        "it": "Generi",
+        "pt": "Géneros",
+        "nl": "Genres",
+        "zh": "类型"
+      }
+    },
+    {
+      "id": "genre-romance",
+      "type": "book",
+      "name": "Romance",
+      "names": {
+        "en": "Romance",
+        "de": "Liebesromane",
+        "es": "Romántica",
+        "fr": "Romance",
+        "it": "Romanzi rosa",
+        "pt": "Romance",
+        "nl": "Romantiek",
+        "zh": "言情"
+      },
+      "group": "genres",
+      "groupNames": {
+        "en": "Genres",
+        "de": "Genres",
+        "es": "Géneros",
+        "fr": "Genres",
+        "it": "Generi",
+        "pt": "Géneros",
+        "nl": "Genres",
+        "zh": "类型"
+      }
+    },
+    {
+      "id": "genre-horror",
+      "type": "book",
+      "name": "Horror",
+      "names": {
+        "en": "Horror",
+        "de": "Horror",
+        "es": "Terror",
+        "fr": "Horreur",
+        "it": "Horror",
+        "pt": "Terror",
+        "nl": "Horror",
+        "zh": "恐怖"
+      },
+      "group": "genres",
+      "groupNames": {
+        "en": "Genres",
+        "de": "Genres",
+        "es": "Géneros",
+        "fr": "Genres",
+        "it": "Generi",
+        "pt": "Géneros",
+        "nl": "Genres",
+        "zh": "类型"
+      }
+    },
+    {
+      "id": "genre-historical",
+      "type": "book",
+      "name": "Historical fiction",
+      "names": {
+        "en": "Historical fiction",
+        "de": "Historische Romane",
+        "es": "Novela histórica",
+        "fr": "Romans historiques",
+        "it": "Romanzi storici",
+        "pt": "Ficção histórica",
+        "nl": "Historische romans",
+        "zh": "历史小说"
+      },
+      "group": "genres",
+      "groupNames": {
+        "en": "Genres",
+        "de": "Genres",
+        "es": "Géneros",
+        "fr": "Genres",
+        "it": "Generi",
+        "pt": "Géneros",
+        "nl": "Genres",
+        "zh": "类型"
+      }
+    },
+    {
+      "id": "genre-biography",
+      "type": "book",
+      "name": "Biographies",
+      "names": {
+        "en": "Biographies",
+        "de": "Biografien",
+        "es": "Biografías",
+        "fr": "Biographies",
+        "it": "Biografie",
+        "pt": "Biografias",
+        "nl": "Biografieën",
+        "zh": "传记"
+      },
+      "group": "genres",
+      "groupNames": {
+        "en": "Genres",
+        "de": "Genres",
+        "es": "Géneros",
+        "fr": "Genres",
+        "it": "Generi",
+        "pt": "Géneros",
+        "nl": "Genres",
+        "zh": "类型"
+      }
+    },
+    {
+      "id": "genre-self_help",
+      "type": "book",
+      "name": "Self-help",
+      "names": {
+        "en": "Self-help",
+        "de": "Ratgeber",
+        "es": "Autoayuda",
+        "fr": "Développement personnel",
+        "it": "Crescita personale",
+        "pt": "Autoajuda",
+        "nl": "Zelfhulp",
+        "zh": "自我提升"
+      },
+      "group": "genres",
+      "groupNames": {
+        "en": "Genres",
+        "de": "Genres",
+        "es": "Géneros",
+        "fr": "Genres",
+        "it": "Generi",
+        "pt": "Géneros",
+        "nl": "Genres",
+        "zh": "类型"
+      }
+    },
+    {
+      "id": "genre-children",
+      "type": "book",
+      "name": "Kids",
+      "names": {
+        "en": "Kids",
+        "de": "Kinder",
+        "es": "Infantil",
+        "fr": "Enfants",
+        "it": "Bambini",
+        "pt": "Infantil",
+        "nl": "Kinderen",
+        "zh": "儿童"
+      },
+      "group": "genres",
+      "groupNames": {
+        "en": "Genres",
+        "de": "Genres",
+        "es": "Géneros",
+        "fr": "Genres",
+        "it": "Generi",
+        "pt": "Géneros",
+        "nl": "Genres",
+        "zh": "类型"
+      }
+    },
+    {
+      "id": "bestsellers",
+      "type": "audiobook",
+      "name": "Bestsellers",
+      "names": {
+        "en": "Bestsellers",
+        "de": "Bestseller",
+        "es": "Más vendidos",
+        "fr": "Meilleures ventes",
+        "it": "Più venduti",
+        "pt": "Mais vendidos",
+        "nl": "Bestsellers",
+        "zh": "畅销榜"
+      },
+      "group": "charts",
+      "groupNames": {
+        "en": "Charts",
+        "de": "Charts",
+        "es": "Listas",
+        "fr": "Classements",
+        "it": "Classifiche",
+        "pt": "Tops",
+        "nl": "Hitlijsten",
+        "zh": "排行榜"
+      }
+    },
+    {
+      "id": "new-releases",
+      "type": "audiobook",
+      "name": "New releases",
+      "names": {
+        "en": "New releases",
+        "de": "Neuerscheinungen",
+        "es": "Novedades",
+        "fr": "Nouveautés",
+        "it": "Novità",
+        "pt": "Novidades",
+        "nl": "Nieuw verschenen",
+        "zh": "新品"
+      },
+      "group": "charts",
+      "groupNames": {
+        "en": "Charts",
+        "de": "Charts",
+        "es": "Listas",
+        "fr": "Classements",
+        "it": "Classifiche",
+        "pt": "Tops",
+        "nl": "Hitlijsten",
+        "zh": "排行榜"
+      }
+    },
+    {
+      "id": "genre-fantasy",
+      "type": "audiobook",
+      "name": "Fantasy",
+      "names": {
+        "en": "Fantasy",
+        "de": "Fantasy",
+        "es": "Fantasía",
+        "fr": "Fantasy",
+        "it": "Fantasy",
+        "pt": "Fantasia",
+        "nl": "Fantasy",
+        "zh": "奇幻"
+      },
+      "group": "genres",
+      "groupNames": {
+        "en": "Genres",
+        "de": "Genres",
+        "es": "Géneros",
+        "fr": "Genres",
+        "it": "Generi",
+        "pt": "Géneros",
+        "nl": "Genres",
+        "zh": "类型"
+      }
+    },
+    {
+      "id": "genre-science_fiction",
+      "type": "audiobook",
+      "name": "Science fiction",
+      "names": {
+        "en": "Science fiction",
+        "de": "Science-Fiction",
+        "es": "Ciencia ficción",
+        "fr": "Science-fiction",
+        "it": "Fantascienza",
+        "pt": "Ficção científica",
+        "nl": "Sciencefiction",
+        "zh": "科幻"
+      },
+      "group": "genres",
+      "groupNames": {
+        "en": "Genres",
+        "de": "Genres",
+        "es": "Géneros",
+        "fr": "Genres",
+        "it": "Generi",
+        "pt": "Géneros",
+        "nl": "Genres",
+        "zh": "类型"
+      }
+    },
+    {
+      "id": "genre-thriller",
+      "type": "audiobook",
+      "name": "Thrillers",
+      "names": {
+        "en": "Thrillers",
+        "de": "Thriller",
+        "es": "Suspense",
+        "fr": "Thrillers",
+        "it": "Thriller",
+        "pt": "Thrillers",
+        "nl": "Thrillers",
+        "zh": "惊悚"
+      },
+      "group": "genres",
+      "groupNames": {
+        "en": "Genres",
+        "de": "Genres",
+        "es": "Géneros",
+        "fr": "Genres",
+        "it": "Generi",
+        "pt": "Géneros",
+        "nl": "Genres",
+        "zh": "类型"
+      }
+    },
+    {
+      "id": "genre-mystery",
+      "type": "audiobook",
+      "name": "Mystery & crime",
+      "names": {
+        "en": "Mystery & crime",
+        "de": "Krimis",
+        "es": "Misterio y crimen",
+        "fr": "Polars",
+        "it": "Gialli",
+        "pt": "Policiais",
+        "nl": "Misdaad",
+        "zh": "推理"
+      },
+      "group": "genres",
+      "groupNames": {
+        "en": "Genres",
+        "de": "Genres",
+        "es": "Géneros",
+        "fr": "Genres",
+        "it": "Generi",
+        "pt": "Géneros",
+        "nl": "Genres",
+        "zh": "类型"
+      }
+    },
+    {
+      "id": "genre-romance",
+      "type": "audiobook",
+      "name": "Romance",
+      "names": {
+        "en": "Romance",
+        "de": "Liebesromane",
+        "es": "Romántica",
+        "fr": "Romance",
+        "it": "Romanzi rosa",
+        "pt": "Romance",
+        "nl": "Romantiek",
+        "zh": "言情"
+      },
+      "group": "genres",
+      "groupNames": {
+        "en": "Genres",
+        "de": "Genres",
+        "es": "Géneros",
+        "fr": "Genres",
+        "it": "Generi",
+        "pt": "Géneros",
+        "nl": "Genres",
+        "zh": "类型"
+      }
+    },
+    {
+      "id": "genre-horror",
+      "type": "audiobook",
+      "name": "Horror",
+      "names": {
+        "en": "Horror",
+        "de": "Horror",
+        "es": "Terror",
+        "fr": "Horreur",
+        "it": "Horror",
+        "pt": "Terror",
+        "nl": "Horror",
+        "zh": "恐怖"
+      },
+      "group": "genres",
+      "groupNames": {
+        "en": "Genres",
+        "de": "Genres",
+        "es": "Géneros",
+        "fr": "Genres",
+        "it": "Generi",
+        "pt": "Géneros",
+        "nl": "Genres",
+        "zh": "类型"
+      }
+    },
+    {
+      "id": "genre-historical",
+      "type": "audiobook",
+      "name": "Historical fiction",
+      "names": {
+        "en": "Historical fiction",
+        "de": "Historische Romane",
+        "es": "Novela histórica",
+        "fr": "Romans historiques",
+        "it": "Romanzi storici",
+        "pt": "Ficção histórica",
+        "nl": "Historische romans",
+        "zh": "历史小说"
+      },
+      "group": "genres",
+      "groupNames": {
+        "en": "Genres",
+        "de": "Genres",
+        "es": "Géneros",
+        "fr": "Genres",
+        "it": "Generi",
+        "pt": "Géneros",
+        "nl": "Genres",
+        "zh": "类型"
+      }
+    },
+    {
+      "id": "genre-biography",
+      "type": "audiobook",
+      "name": "Biographies",
+      "names": {
+        "en": "Biographies",
+        "de": "Biografien",
+        "es": "Biografías",
+        "fr": "Biographies",
+        "it": "Biografie",
+        "pt": "Biografias",
+        "nl": "Biografieën",
+        "zh": "传记"
+      },
+      "group": "genres",
+      "groupNames": {
+        "en": "Genres",
+        "de": "Genres",
+        "es": "Géneros",
+        "fr": "Genres",
+        "it": "Generi",
+        "pt": "Géneros",
+        "nl": "Genres",
+        "zh": "类型"
+      }
+    },
+    {
+      "id": "genre-self_help",
+      "type": "audiobook",
+      "name": "Self-help",
+      "names": {
+        "en": "Self-help",
+        "de": "Ratgeber",
+        "es": "Autoayuda",
+        "fr": "Développement personnel",
+        "it": "Crescita personale",
+        "pt": "Autoajuda",
+        "nl": "Zelfhulp",
+        "zh": "自我提升"
+      },
+      "group": "genres",
+      "groupNames": {
+        "en": "Genres",
+        "de": "Genres",
+        "es": "Géneros",
+        "fr": "Genres",
+        "it": "Generi",
+        "pt": "Géneros",
+        "nl": "Genres",
+        "zh": "类型"
+      }
+    },
+    {
+      "id": "genre-children",
+      "type": "audiobook",
+      "name": "Kids",
+      "names": {
+        "en": "Kids",
+        "de": "Kinder",
+        "es": "Infantil",
+        "fr": "Enfants",
+        "it": "Bambini",
+        "pt": "Infantil",
+        "nl": "Kinderen",
+        "zh": "儿童"
+      },
+      "group": "genres",
+      "groupNames": {
+        "en": "Genres",
+        "de": "Genres",
+        "es": "Géneros",
+        "fr": "Genres",
+        "it": "Generi",
+        "pt": "Géneros",
+        "nl": "Genres",
+        "zh": "类型"
+      }
+    }
+  ]
 }
