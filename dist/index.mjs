@@ -450,6 +450,7 @@ var hardcover = {
 // src/providers/openLibrary.ts
 var BASE2 = "https://openlibrary.org";
 var FIELDS = "key,title,subtitle,author_name,first_publish_year,cover_i,isbn,number_of_pages_median,language,subject,ratings_average,ratings_count";
+var realAuthors = (names2) => (names2 ?? []).filter((a) => !/sparknotes|cliffsnotes|litcharts|shmoop|summary/i.test(a));
 var cover = (id) => id && id > 0 ? `https://covers.openlibrary.org/b/id/${id}-L.jpg` : void 0;
 var workId = (key) => (key ?? "").replace(/^\/works\//, "");
 function mapSearchDoc(d) {
@@ -460,7 +461,7 @@ function mapSearchDoc(d) {
     kind: "book",
     title: d.title,
     subtitle: d.subtitle,
-    authors: (d.author_name ?? []).filter((a) => !/sparknotes|cliffsnotes|summary/i.test(a)),
+    authors: realAuthors(d.author_name),
     cover: cover(d.cover_i),
     year: d.first_publish_year,
     pages: d.number_of_pages_median,
@@ -480,7 +481,7 @@ function mapWork2(w, authors) {
     kind: "book",
     title: w.title,
     subtitle: w.subtitle,
-    authors,
+    authors: realAuthors(authors),
     // Strip the "([source][1])" footnotes Open Library descriptions often carry.
     description: stripHtml(desc?.replace(/\(\[source\]\[\d+\]\)[\s\S]*$/, "").replace(/-{3,}[\s\S]*$/, "")),
     cover: cover(w.covers?.find((c) => c > 0)),
@@ -778,7 +779,7 @@ var resources = {
 var manifest_default = {
   id: "rewind.codex",
   name: "The Codex",
-  version: "1.1.0",
+  version: "1.1.1",
   description: "Book + audiobook metadata for Rewind \u2014 one search across Hardcover, Google Books, Open Library and Audible (Audnexus), merged: covers, authors, narrators, series, descriptions, chapters. Powers the Books space; The Forge finds the releases.",
   resources: [
     "search",
