@@ -164,13 +164,14 @@ function mergeResults(lists, query, kind) {
       else groups.set(key, { books: [b], firstSeen: n++ });
     }
   }
-  const q = norm(query);
+  const bare = (x) => norm(x).replace(/^(?:a|an|the|der|die|das|ein|eine|le|la|les|l|el|los|las|il|lo|gli|o|os|as|de|het|een) /, "");
+  const q = bare(query);
   const merged = [...groups.values()].map((g) => ({ book: mergeGroup(g.books, kind), firstSeen: g.firstSeen }));
   const score = (b, firstSeen) => {
-    const t = norm(b.title);
+    const t = bare(b.title);
     const titleHit = t === q ? 3 : t.includes(q) || q.includes(t) ? 1.5 : 0;
     const authorHit = b.authors.some((a) => q.includes(norm(a).split(" ").pop() ?? "\0")) ? 1 : 0;
-    return titleHit + authorHit + b.sources.length * 0.6 + Math.log10((b.ratingsCount ?? 0) + 1) * 0.4 - firstSeen * 0.02;
+    return titleHit + authorHit + b.sources.length * 0.6 + Math.log10((b.ratingsCount ?? 0) + 1) * 0.9 - firstSeen * 0.02;
   };
   return merged.sort((a, b) => score(b.book, b.firstSeen) - score(a.book, a.firstSeen)).map((x) => x.book);
 }
@@ -509,7 +510,21 @@ var openLibrary = {
         return (await getJson(`${BASE2}${key}.json`))?.name ?? null;
       })
     );
-    return mapWork2(w, names2.filter((n) => !!n));
+    const book = mapWork2(w, names2.filter((n) => !!n));
+    if (book && (!book.cover || !book.authors.length || !book.pages)) {
+      const params = new URLSearchParams({ q: `key:/works/${id}`, fields: FIELDS, limit: "1" });
+      const doc = (await getJson(`${BASE2}/search.json?${params}`))?.docs?.[0];
+      const extra = doc ? mapSearchDoc(doc) : null;
+      if (extra) {
+        book.cover ??= extra.cover;
+        if (!book.authors.length) book.authors = extra.authors;
+        book.pages ??= extra.pages;
+        book.year ??= extra.year;
+        book.rating ??= extra.rating;
+        book.ratingsCount ??= extra.ratingsCount;
+      }
+    }
+    return book;
   }
 };
 async function olTrending(period, limit = 40) {
@@ -779,7 +794,7 @@ var resources = {
 var manifest_default = {
   id: "rewind.codex",
   name: "The Codex",
-  version: "1.1.1",
+  version: "1.1.2",
   description: "Book + audiobook metadata for Rewind \u2014 one search across Hardcover, Google Books, Open Library and Audible (Audnexus), merged: covers, authors, narrators, series, descriptions, chapters. Powers the Books space; The Forge finds the releases.",
   resources: [
     "search",
