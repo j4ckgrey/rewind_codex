@@ -201,10 +201,24 @@ async function getJson(url, init = {}) {
       signal: AbortSignal.timeout(init.timeoutMs ?? 1e4)
     });
     if (!res.ok) {
+      if (res.status === 404 && init.notFoundIsEmpty) return null;
       logger.warn("books", `${new URL(url).host} \u2192 HTTP ${res.status}${res.status === 429 ? " (rate limit / quota)" : ""}`);
       return null;
     }
     return await res.json();
+  } catch (err) {
+    logger.warn("books", `${safeHost(url)} unreachable (${err.message})`);
+    return null;
+  }
+}
+async function getText(url, init = {}) {
+  try {
+    const res = await fetch(url, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(init.timeoutMs ?? 1e4) });
+    if (!res.ok) {
+      logger.warn("books", `${new URL(url).host} \u2192 HTTP ${res.status}`);
+      return null;
+    }
+    return await res.text();
   } catch (err) {
     logger.warn("books", `${safeHost(url)} unreachable (${err.message})`);
     return null;
@@ -577,10 +591,10 @@ function parseId(id) {
 async function getBook(id, kind, lang2) {
   const parsed = parseId(id);
   if (!parsed) return null;
-  const cache2 = detailCache();
-  await cache2.ready();
+  const cache3 = detailCache();
+  await cache3.ready();
   const cacheKey = `${kind}|${id}`;
-  const cached = cache2.get(cacheKey);
+  const cached = cache3.get(cacheKey);
   if (cached) return cached;
   const cfg = await codexConfig();
   const provider = byName.get(parsed.provider);
@@ -595,7 +609,7 @@ async function getBook(id, kind, lang2) {
     others.map((p) => p.search(query, { ...opts, limit: 8 }, cfg).then((list) => list.filter((b) => groupKey(b) === key)).catch(() => []))
   );
   const merged = { ...mergeGroup([primary, ...extra.flat()], kind), id: primary.id };
-  cache2.set(cacheKey, merged, 7 * DAY);
+  cache3.set(cacheKey, merged, 7 * DAY);
   return merged;
 }
 
@@ -727,11 +741,154 @@ async function refreshDiscover() {
   return { lists, books };
 }
 
+// src/sources/types.ts
+function surname(author) {
+  const parts = norm(author.includes(",") ? author.split(",")[0] : author).split(" ").filter(Boolean);
+  return parts[parts.length - 1] ?? "";
+}
+function sameBook(title, authors, q) {
+  const t = norm(title);
+  const want = norm(q.title);
+  if (!t || !want) return false;
+  const titleOk = t === want || t.startsWith(`${want} `) || want.startsWith(`${t} `);
+  const s = surname(q.author);
+  return titleOk && (!s || authors.some((a) => norm(a).split(" ").includes(s)));
+}
+function fileName(title, author, ext) {
+  const base = `${author ? `${author} - ` : ""}${title}`.replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
+  return `${base || "book"}.${ext}`;
+}
+
+// src/sources/archive.ts
+var MAX_ITEMS = 4;
+function itemCopies(ia, meta) {
+  if (String(meta.metadata?.["access-restricted-item"] ?? "").toLowerCase() === "true") return [];
+  const out = [];
+  for (const f of meta.files ?? []) {
+    if (f.private === "true" || /_encrypted|_lcp/i.test(f.name)) continue;
+    const format = /\.epub$/i.test(f.name) ? "epub" : /\.pdf$/i.test(f.name) && /text pdf|pdf/i.test(f.format ?? "pdf") ? "pdf" : null;
+    if (!format || out.some((c) => c.format === format)) continue;
+    out.push({
+      id: `archive:${ia}:${format}`,
+      title: `Internet Archive \xB7 ${format.toUpperCase()}`,
+      format,
+      url: `https://archive.org/download/${encodeURIComponent(ia)}/${encodeURIComponent(f.name)}`,
+      name: f.name,
+      size: Number(f.size) || void 0
+    });
+  }
+  return out.sort((a, b) => (a.format === "epub" ? -1 : 1) - (b.format === "epub" ? -1 : 1));
+}
+var internetArchive = {
+  name: "Internet Archive",
+  kinds: ["book"],
+  async find(q) {
+    const params = new URLSearchParams({ title: q.title, fields: "key,title,author_name,ebook_access,ia,language", limit: "10" });
+    if (q.author) params.set("author", q.author);
+    const res = await getJson(`https://openlibrary.org/search.json?${params}`, { timeoutMs: 12e3 });
+    const items = (res?.docs ?? []).filter((d) => d.ebook_access === "public" && sameBook(d.title, d.author_name ?? [], q)).flatMap((d) => d.ia ?? []).filter((ia) => !/^bwb_/i.test(ia)).slice(0, MAX_ITEMS);
+    const lists = await Promise.all(
+      items.map(async (ia) => {
+        const meta = await getJson(`https://archive.org/metadata/${encodeURIComponent(ia)}`, { timeoutMs: 12e3 });
+        return meta ? itemCopies(ia, meta) : [];
+      })
+    );
+    return lists.flat();
+  }
+};
+
+// src/sources/gutenberg.ts
+var BASE3 = "https://www.gutenberg.org";
+var MAX = 3;
+var unescape = (s) => s.replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").trim();
+function parseSearchFeed(xml) {
+  const out = [];
+  for (const entry of xml.match(/<entry>[\s\S]*?<\/entry>/g) ?? []) {
+    const id = /<id>[^<]*\/ebooks\/(\d+)\.opds<\/id>/.exec(entry)?.[1];
+    const title = /<title>([^<]*)<\/title>/.exec(entry)?.[1];
+    if (!id || !title) continue;
+    out.push({ id, title: unescape(title), author: unescape(/<content[^>]*>([^<]*)<\/content>/.exec(entry)?.[1] ?? "") });
+  }
+  return out;
+}
+var gutenberg = {
+  name: "Project Gutenberg",
+  kinds: ["book"],
+  async find(q) {
+    const query = [q.title, surname(q.author)].filter(Boolean).join(" ");
+    const xml = await getText(`${BASE3}/ebooks/search.opds/?query=${encodeURIComponent(query)}`, { timeoutMs: 12e3 });
+    if (!xml) return [];
+    return parseSearchFeed(xml).filter((e) => sameBook(e.title, [e.author], q)).slice(0, MAX).map((e) => ({
+      id: `gutenberg:${e.id}`,
+      title: "Project Gutenberg \xB7 EPUB",
+      format: "epub",
+      url: `${BASE3}/ebooks/${e.id}.epub3.images`,
+      name: fileName(e.title, e.author, "epub")
+    }));
+  }
+};
+
+// src/sources/librivox.ts
+var LANG = { english: "en", german: "de", spanish: "es", french: "fr", italian: "it", dutch: "nl", portuguese: "pt", chinese: "zh" };
+function recordingCopy(b) {
+  const files = (b.sections ?? []).filter((s) => s.listen_url).sort((x, y) => Number(x.section_number) - Number(y.section_number)).map((s, i) => ({
+    url: s.listen_url.replace(/^http:/, "https:"),
+    name: `${String(i + 1).padStart(3, "0")} ${s.title?.trim() || `Part ${i + 1}`}.mp3`,
+    duration: Number(s.playtime) || void 0
+  }));
+  if (!files.length) return null;
+  const author = [b.authors?.[0]?.first_name, b.authors?.[0]?.last_name].filter(Boolean).join(" ");
+  return {
+    id: `librivox:${b.id}`,
+    title: `LibriVox \xB7 ${b.title}`,
+    format: "mp3",
+    url: files[0].url,
+    name: fileName(b.title, author, "mp3"),
+    files,
+    language: LANG[(b.language ?? "").toLowerCase()]
+  };
+}
+var librivox = {
+  name: "LibriVox",
+  kinds: ["audiobook"],
+  async find(q) {
+    const title = q.title.trim().replace(/^(the|a|an|der|die|das|le|la|les|el|il)\s+/i, "");
+    const url = `https://librivox.org/api/feed/audiobooks?title=${encodeURIComponent(`^${title}`)}&format=json&extended=1&limit=10`;
+    const res = await getJson(url, { timeoutMs: 15e3, notFoundIsEmpty: true });
+    return (res?.books ?? []).filter((b) => sameBook(b.title.replace(/\s*\(version \d+\)\s*$/i, ""), (b.authors ?? []).map((a) => `${a.first_name ?? ""} ${a.last_name ?? ""}`), q)).map(recordingCopy).filter((c) => !!c);
+  }
+};
+
+// src/sources/index.ts
+var SOURCES = [gutenberg, internetArchive, librivox];
+var DAY2 = 864e5;
+var cache2 = new TtlCache(2e3);
+async function findCopies(kind, q) {
+  if (!q.title.trim()) return [];
+  const key = `${kind}|${q.title}|${q.author}|${q.language ?? ""}`.toLowerCase();
+  const hit = cache2.get(key);
+  if (hit) return hit;
+  const sources = SOURCES.filter((s) => s.kinds.includes(kind));
+  const lists = await Promise.all(
+    sources.map(
+      (s) => s.find(q).catch((err) => {
+        logger.warn("books", `${s.name}: ${err.message}`);
+        return [];
+      })
+    )
+  );
+  const all = lists.flat();
+  const lang2 = q.language?.slice(0, 2).toLowerCase();
+  const copies = lang2 ? [...all.filter((c) => !c.language || c.language === lang2), ...all.filter((c) => c.language && c.language !== lang2)] : all;
+  cache2.set(key, copies, DAY2);
+  return copies;
+}
+
 // src/resources.ts
 function kindOf(req) {
   if (req.type === "book") return "book";
   if (req.type === "audiobook") return "audiobook";
-  throw new Error(`The Codex serves types "book" and "audiobook", not "${req.type}"`);
+  throw new Error(`Codex serves types "book" and "audiobook", not "${req.type}"`);
 }
 var lang = (req) => typeof req.extra.lang === "string" ? req.extra.lang : void 0;
 function toMeta(b) {
@@ -784,6 +941,19 @@ var resources = {
     }
     throw new Error(`unknown automation "${req.id}"`);
   },
+  async stream(req) {
+    const kind = kindOf(req);
+    const str = (k) => typeof req.extra[k] === "string" ? req.extra[k].trim() : "";
+    let q = { title: str("title"), author: str("author"), language: str("language") || void 0, isbn: str("isbn") || void 0 };
+    if (!q.title && req.id.startsWith("codex:")) {
+      const b = await getBook(req.id, kind, lang(req));
+      if (b) q = { title: b.title, author: b.authors[0] ?? "", language: b.language, isbn: b.isbn13 };
+    }
+    const copies = await findCopies(kind, q);
+    return {
+      streams: copies.map((c) => ({ id: c.id, url: c.url, name: c.name, title: c.title, format: c.format, size: c.size, files: c.files, language: c.language }))
+    };
+  },
   async artwork(req) {
     const b = await getBook(req.id, kindOf(req), lang(req));
     return { artwork: { poster: b?.cover ?? null } };
@@ -793,14 +963,15 @@ var resources = {
 // manifest.json
 var manifest_default = {
   id: "rewind.codex",
-  name: "The Codex",
-  version: "1.1.2",
-  description: "Book + audiobook metadata for Rewind \u2014 one search across Hardcover, Google Books, Open Library and Audible (Audnexus), merged: covers, authors, narrators, series, descriptions, chapters. Powers the Books space; The Forge finds the releases.",
+  name: "Codex",
+  version: "1.2.0",
+  description: "Books for Rewind \u2014 metadata and free books in one addon. One search across Hardcover, Google Books, Open Library and Audible (Audnexus) for covers, authors, narrators, series, descriptions and chapters; and free, legal copies to read or listen to: public-domain ebooks from Project Gutenberg and the Internet Archive, audiobooks from LibriVox. Powers the Books space.",
   resources: [
     "search",
     "meta",
     "artwork",
     "catalog",
+    "stream",
     "automation"
   ],
   types: [
@@ -811,6 +982,9 @@ var manifest_default = {
     "codex:"
   ],
   provides: {
+    content: [
+      "books"
+    ],
     metadata: [
       "books"
     ],
