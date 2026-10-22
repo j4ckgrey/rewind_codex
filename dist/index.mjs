@@ -317,10 +317,10 @@ var audible = {
   },
   async get(asin, opts) {
     const { region } = storeFor(opts.lang);
-    const base = `https://api.audnex.us/books/${encodeURIComponent(asin.toUpperCase())}`;
+    const base2 = `https://api.audnex.us/books/${encodeURIComponent(asin.toUpperCase())}`;
     const [book, chapters] = await Promise.all([
-      getJson(`${base}?region=${region}`),
-      getJson(`${base}/chapters?region=${region}`)
+      getJson(`${base2}?region=${region}`),
+      getJson(`${base2}/chapters?region=${region}`)
     ]);
     return book ? mapAudnex(book, chapters?.chapters) : null;
   }
@@ -335,8 +335,8 @@ async function audibleBrowse(sort, lang2, keywords, limit = 40) {
 
 // src/providers/googleBooks.ts
 var BASE = "https://www.googleapis.com/books/v1/volumes";
-function bestCover(links) {
-  const url = links?.extraLarge ?? links?.large ?? links?.medium ?? links?.small ?? links?.thumbnail;
+function bestCover(links2) {
+  const url = links2?.extraLarge ?? links2?.large ?? links2?.medium ?? links2?.small ?? links2?.thumbnail;
   return url?.replace(/^http:/, "https:").replace(/&edge=curl/, "");
 }
 function mapVolume(v) {
@@ -754,9 +754,9 @@ function sameBook(title, authors, q) {
   const s = surname(q.author);
   return titleOk && (!s || authors.some((a) => norm(a).split(" ").includes(s)));
 }
-function fileName(title, author, ext) {
-  const base = `${author ? `${author} - ` : ""}${title}`.replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
-  return `${base || "book"}.${ext}`;
+function fileName(title, author, ext2) {
+  const base2 = `${author ? `${author} - ` : ""}${title}`.replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
+  return `${base2 || "book"}.${ext2}`;
 }
 
 // src/sources/archive.ts
@@ -859,9 +859,127 @@ var librivox = {
   }
 };
 
+// src/sources/torbox.ts
+var KNABEN = "https://api.knaben.org/v1";
+var TB = "https://api.torbox.app/v1/api";
+var CATEGORY = { book: 9001e3, audiobook: 1003e3 };
+var EBOOK = ["epub", "pdf"];
+var AUDIO = /\.(mp3|m4b|m4a|aac|flac|ogg|opus)$/i;
+var ext = (name) => /\.([a-z0-9]+)$/i.exec(name)?.[1]?.toLowerCase() ?? "";
+var base = (name) => name.split(/[\\/]/).pop() ?? name;
+var folder = (name) => name.slice(0, Math.max(name.lastIndexOf("/"), name.lastIndexOf("\\"), 0));
+var words = (s) => s.normalize("NFKD").replace(new RegExp("\\p{M}", "gu"), "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+function namesBook(text, q) {
+  const have = new Set(words(text));
+  const title = words(q.title.replace(/^(the|a|an)\s+/i, ""));
+  const s = surname(q.author);
+  return title.length > 0 && title.every((w) => have.has(w)) && (!s || have.has(s));
+}
+function pickFiles(kind, release, files, q) {
+  if (!files.length || files.length > 400) return null;
+  if (kind === "book") {
+    for (const format of EBOOK) {
+      const hits = files.filter((f) => ext(f.name) === format);
+      const own = hits.filter((f) => namesBook(base(f.name), q) || hits.length === 1 && namesBook(release, q));
+      if (own.length) return { kind, hash: "", release, format, files: [own.sort((a, b) => (b.size ?? 0) - (a.size ?? 0))[0]] };
+    }
+    return null;
+  }
+  const tracks = files.filter((f) => AUDIO.test(f.name));
+  if (!tracks.length || !namesBook(`${release} ${tracks[0].name}`, q)) return null;
+  const m4b = tracks.filter((f) => ext(f.name) === "m4b");
+  if (m4b.length === 1) return { kind, hash: "", release, format: "m4b", files: m4b };
+  if (m4b.length > 1 || new Set(tracks.map((f) => folder(f.name))).size > 1) return null;
+  const ordered = [...tracks].sort((a, b) => a.name.localeCompare(b.name, void 0, { numeric: true }));
+  return { kind, hash: "", release, format: ext(ordered[0].name), files: ordered };
+}
+async function knaben(kind, q) {
+  const res = await getJson(KNABEN, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      search_type: "100%",
+      search_field: "title",
+      query: q.title.trim(),
+      categories: [CATEGORY[kind]],
+      order_by: "seeders",
+      order_direction: "desc",
+      size: 50,
+      hide_unsafe: true
+    }),
+    timeoutMs: 15e3
+  });
+  return (res?.hits ?? []).map((h) => ({ hash: String(h.hash ?? "").toLowerCase(), name: String(h.title ?? "") })).filter((r) => /^[a-f0-9]{40}$/.test(r.hash) && namesBook(r.name, q));
+}
+var auth = (key) => ({ Authorization: `Bearer ${key}` });
+async function links(key, p) {
+  const body = new FormData();
+  body.append("magnet", `magnet:?xt=urn:btih:${p.hash}`);
+  const created = await getJson(`${TB}/torrents/createtorrent`, { method: "POST", body, headers: auth(key), timeoutMs: 2e4 });
+  const id = created?.data?.torrent_id;
+  if (!id) return null;
+  let listed = [];
+  for (let i = 0; i < 4 && !listed.length; i++) {
+    if (i) await new Promise((r) => setTimeout(r, 1500));
+    const info = await getJson(`${TB}/torrents/mylist?id=${id}&bypass_cache=true`, { headers: auth(key) });
+    listed = info?.data?.files ?? [];
+  }
+  const out = [];
+  for (const f of p.files) {
+    const mine = listed.find((l) => l.name === f.name || base(l.name) === base(f.name));
+    if (mine?.id == null) return null;
+    const dl = await getJson(`${TB}/torrents/requestdl?token=${encodeURIComponent(key)}&torrent_id=${id}&file_id=${mine.id}`, { headers: auth(key) });
+    if (!dl?.data) return null;
+    out.push({ url: dl.data, name: base(f.name), size: f.size });
+  }
+  return out;
+}
+async function find(kind, q) {
+  const key = (await codexConfig()).torbox_api_key?.trim();
+  if (!key || !q.title.trim()) return [];
+  const releases = await knaben(kind, q);
+  if (!releases.length) return [];
+  const params = releases.map((r) => `hash=${r.hash}`).join("&");
+  const cached = await getJson(`${TB}/torrents/checkcached?${params}&format=object&list_files=true`, { headers: auth(key), timeoutMs: 2e4 });
+  const data = cached?.data ?? {};
+  const picks = releases.map((r) => {
+    const c = data[r.hash];
+    const p = c?.files ? pickFiles(kind, c.name || r.name, c.files, q) : null;
+    return p ? { ...p, hash: r.hash } : null;
+  }).filter((p) => !!p).sort((a, b) => EBOOK.indexOf(a.format) - EBOOK.indexOf(b.format));
+  logger.info("books", `TorBox: "${q.title}" ${kind} \u2014 ${releases.length} release(s), ${Object.keys(data).length} cached, ${picks.length} fit`);
+  for (const p of picks.slice(0, 2)) {
+    const files = await links(key, p).catch(() => null);
+    if (!files?.length) continue;
+    return [
+      {
+        id: `torbox:${p.hash}`,
+        title: `TorBox \xB7 ${p.release} \xB7 ${p.format.toUpperCase()}`,
+        format: p.format,
+        url: files[0].url,
+        name: kind === "book" ? fileName(q.title, q.author, p.format) : files[0].name,
+        size: files.length === 1 ? files[0].size : void 0,
+        files: kind === "audiobook" ? files : void 0
+      }
+    ];
+  }
+  return [];
+}
+var torboxBooks = {
+  name: "TorBox",
+  kinds: ["book"],
+  find: (q) => find("book", q)
+};
+var torboxAudio = {
+  name: "TorBox",
+  kinds: ["audiobook"],
+  find: (q) => find("audiobook", q)
+};
+
 // src/sources/index.ts
-var SOURCES = [gutenberg, internetArchive, librivox];
+var SOURCES = [gutenberg, torboxBooks, internetArchive, torboxAudio, librivox];
 var DAY2 = 864e5;
+var HOUR = 36e5;
 var cache2 = new TtlCache(2e3);
 async function findCopies(kind, q) {
   if (!q.title.trim()) return [];
@@ -880,7 +998,7 @@ async function findCopies(kind, q) {
   const all = lists.flat();
   const lang2 = q.language?.slice(0, 2).toLowerCase();
   const copies = lang2 ? [...all.filter((c) => !c.language || c.language === lang2), ...all.filter((c) => c.language && c.language !== lang2)] : all;
-  cache2.set(key, copies, DAY2);
+  cache2.set(key, copies, copies.some((c) => c.id.startsWith("torbox:")) ? HOUR : DAY2);
   return copies;
 }
 
@@ -964,8 +1082,8 @@ var resources = {
 var manifest_default = {
   id: "rewind.codex",
   name: "Codex",
-  version: "1.2.0",
-  description: "Books for Rewind \u2014 metadata and free books in one addon. One search across Hardcover, Google Books, Open Library and Audible (Audnexus) for covers, authors, narrators, series, descriptions and chapters; and free, legal copies to read or listen to: public-domain ebooks from Project Gutenberg and the Internet Archive, audiobooks from LibriVox. Powers the Books space.",
+  version: "1.3.0",
+  description: "Books for Rewind \u2014 metadata and free books in one addon. One search across Hardcover, Google Books, Open Library and Audible (Audnexus) for covers, authors, narrators, series, descriptions and chapters; and free, legal copies to read or listen to: public-domain ebooks from Project Gutenberg and the Internet Archive, audiobooks from LibriVox. With a TorBox key (API Keys tab), also books and audiobooks already cached on your TorBox. Powers the Books space.",
   resources: [
     "search",
     "meta",
