@@ -1,15 +1,16 @@
 import{fileURLToPath as __sdk_f}from'node:url';import{dirname as __sdk_d}from'node:path';const __filename=__sdk_f(import.meta.url);const __dirname=__sdk_d(__filename);
 
 // ../zero_addon_sdk/src/manifest.ts
-var SDK_PROTOCOL_VERSION = 2;
+var SDK_PROTOCOL_VERSION = 3;
 
 // ../zero_addon_sdk/src/addon.ts
 function defineAddon(def) {
   return {
     manifest: def.manifest,
     async register(host) {
-      const { resources: resources2 = {}, api } = await def.setup(host);
-      return { sdk: SDK_PROTOCOL_VERSION, manifest: def.manifest, resources: resources2, api };
+      const { resources: resources2 = {}, actions = {}, routes = {}, services = {}, api } = await def.setup(host);
+      const sdk = def.manifest.zero.sdk ?? Math.min(2, SDK_PROTOCOL_VERSION);
+      return { sdk, manifest: def.manifest, resources: resources2, actions, routes, services, ...api !== void 0 ? { api } : {} };
     }
   };
 }
@@ -88,9 +89,10 @@ function getCodexHost() {
   return _host;
 }
 async function codexConfig() {
-  if (!_host?.getAddonConfig) return {};
+  if (!_host) return {};
   try {
-    return await _host.getAddonConfig();
+    const values = await _host.settings.get();
+    return Object.fromEntries(Object.entries(values).map(([k, v]) => [k, String(v)]));
   } catch {
     return {};
   }
@@ -361,7 +363,7 @@ function mapVolume(v) {
     sources: ["google"]
   };
 }
-var keyOf = (cfg) => (cfg.codex_google_books_key ?? "").trim();
+var keyOf = (cfg) => (cfg.google_books_key ?? "").trim();
 var googleBooks = {
   name: "google",
   available: (cfg) => !!keyOf(cfg),
@@ -431,7 +433,7 @@ function mapWork(w, kind) {
   };
 }
 function token(cfg) {
-  const t = (cfg.codex_hardcover_token ?? "").trim();
+  const t = (cfg.hardcover_token ?? "").trim();
   if (!t) return "";
   return /^bearer\s/i.test(t) ? t : `Bearer ${t}`;
 }
@@ -567,7 +569,7 @@ var details = null;
 function detailCache() {
   if (!details) {
     const dir = hasCodexHost() ? getCodexHost().dataDir : void 0;
-    details = new PersistedCache(5e3, dir ? path2.join(dir, "addons", "codex", "books.json") : null);
+    details = new PersistedCache(5e3, dir ? path2.join(dir, "books.json") : null);
   }
   return details;
 }
@@ -702,7 +704,7 @@ var seenLangs = /* @__PURE__ */ new Set(["en"]);
 function store() {
   if (!cache) {
     const dir = hasCodexHost() ? getCodexHost().dataDir : void 0;
-    cache = new PersistedCache(400, dir ? path3.join(dir, "addons", "codex", "discover.json") : null);
+    cache = new PersistedCache(400, dir ? path3.join(dir, "discover.json") : null);
   }
   return cache;
 }
@@ -1083,7 +1085,7 @@ var manifest_default = {
   id: "zero.codex",
   name: "Codex",
   version: "1.3.0",
-  description: "Books for Zero Media \u2014 metadata and free books in one addon. One search across Hardcover, Google Books, Open Library and Audible (Audnexus) for covers, authors, narrators, series, descriptions and chapters; and free, legal copies to read or listen to: public-domain ebooks from Project Gutenberg and the Internet Archive, audiobooks from LibriVox. With a TorBox key (API Keys tab), also books and audiobooks already cached on your TorBox. Powers the Books space.",
+  description: "Books for Zero Media \u2014 metadata and free books in one addon. One search across Hardcover, Google Books, Open Library and Audible (Audnexus) for covers, authors, narrators, series, descriptions and chapters; and free, legal copies to read or listen to: public-domain ebooks from Project Gutenberg and the Internet Archive, audiobooks from LibriVox. With a TorBox key, also books and audiobooks already cached on your TorBox. Powers the Books space.",
   resources: [
     "search",
     "meta",
@@ -1112,31 +1114,62 @@ var manifest_default = {
   },
   zero: {
     kind: "books",
-    sdk: 2,
+    sdk: 3,
     repo: "j4ckgrey/zero_codex",
     branch: "main",
     bundlePath: "dist/index.mjs",
     bundleUrl: "https://raw.githubusercontent.com/j4ckgrey/zero_codex/main/dist/index.mjs",
-    tabs: [],
-    configKeys: [
+    settings: [
       {
-        key: "codex_hardcover_token",
+        key: "hardcover_token",
+        type: "secret",
         label: "Hardcover API token",
-        category: "Books",
-        card: "codex",
         description: "Optional, recommended. Best covers, series and ratings. hardcover.app \u2192 Settings \u2192 Hardcover API (expires every 1 January)."
       },
       {
-        key: "codex_google_books_key",
+        key: "google_books_key",
+        type: "secret",
         label: "Google Books API key",
-        category: "Books",
-        card: "codex",
         description: "Optional. Strong for German and other non-English books. Free key from Google Cloud Console \u2192 Books API."
+      },
+      {
+        key: "torbox_api_key",
+        type: "secret",
+        label: "TorBox API key",
+        description: "Optional. Lists books and audiobooks already cached on your TorBox account."
       }
     ],
-    features: [
-      "books"
+    actions: [
+      {
+        id: "sources",
+        label: "Book sources"
+      }
     ],
+    ui: {
+      metadata: {
+        fields: [
+          "hardcover_token",
+          "google_books_key"
+        ]
+      },
+      card: [
+        {
+          kind: "status",
+          id: "sources",
+          title: "Sources",
+          source: "sources"
+        },
+        {
+          kind: "form",
+          id: "torbox",
+          title: "TorBox",
+          description: "Free books need no key. A TorBox key adds what is already cached on your account.",
+          fields: [
+            "torbox_api_key"
+          ]
+        }
+      ]
+    },
     automations: [
       {
         id: "refresh-discover",
@@ -1801,22 +1834,33 @@ var manifest_default = {
 };
 
 // src/plugin.ts
-function buildApi() {
-  return {
-    async search(query, kind, lang2, limit = 40) {
-      return (await searchBooks(query, { kind, lang: lang2, limit })).map(toMeta);
-    },
-    async get(id, kind, lang2) {
-      const b = await getBook(id, kind, lang2);
-      return b ? toMeta(b) : null;
-    }
-  };
-}
+var PROVIDER_LABELS = {
+  hardcover: "Hardcover",
+  google: "Google Books",
+  openlibrary: "Open Library",
+  audible: "Audible"
+};
 var addon = defineAddon({
   manifest: manifest_default,
   setup(host) {
     setCodexHost(host);
-    return { api: buildApi(), resources };
+    return {
+      resources,
+      actions: {
+        async sources() {
+          const cfg = await codexConfig();
+          const on = (yes, off = "Off \u2014 add a key") => ({ value: yes ? "On" : off, tone: yes ? "success" : "warning" });
+          return {
+            ok: true,
+            items: [
+              ...PROVIDERS.map((p) => ({ label: PROVIDER_LABELS[p.name] ?? p.name, ...on(p.available(cfg)) })),
+              { label: "Gutenberg \xB7 Internet Archive \xB7 LibriVox", value: "On", tone: "success" },
+              { label: "TorBox", ...on(!!cfg.torbox_api_key?.trim(), "Off") }
+            ]
+          };
+        }
+      }
+    };
   }
 });
 var manifest = addon.manifest;
