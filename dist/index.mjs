@@ -1,9 +1,9 @@
 import{fileURLToPath as __sdk_f}from'node:url';import{dirname as __sdk_d}from'node:path';const __filename=__sdk_f(import.meta.url);const __dirname=__sdk_d(__filename);
 
-// ../rewind_addon_sdk/src/manifest.ts
+// ../zero_addon_sdk/src/manifest.ts
 var SDK_PROTOCOL_VERSION = 2;
 
-// ../rewind_addon_sdk/src/addon.ts
+// ../zero_addon_sdk/src/addon.ts
 function defineAddon(def) {
   return {
     manifest: def.manifest,
@@ -192,7 +192,7 @@ var logger = {
 };
 
 // src/http.ts
-var UA = "Rewind-Codex/1.0 (+https://github.com/j4ckgrey/rewind_codex)";
+var UA = "ZeroMedia-Codex/1.0 (+https://github.com/j4ckgrey/zero_codex)";
 async function getJson(url, init = {}) {
   try {
     const res = await fetch(url, {
@@ -1080,10 +1080,10 @@ var resources = {
 
 // manifest.json
 var manifest_default = {
-  id: "rewind.codex",
+  id: "zero.codex",
   name: "Codex",
   version: "1.3.0",
-  description: "Books for Rewind \u2014 metadata and free books in one addon. One search across Hardcover, Google Books, Open Library and Audible (Audnexus) for covers, authors, narrators, series, descriptions and chapters; and free, legal copies to read or listen to: public-domain ebooks from Project Gutenberg and the Internet Archive, audiobooks from LibriVox. With a TorBox key (API Keys tab), also books and audiobooks already cached on your TorBox. Powers the Books space.",
+  description: "Books for Zero Media \u2014 metadata and free books in one addon. One search across Hardcover, Google Books, Open Library and Audible (Audnexus) for covers, authors, narrators, series, descriptions and chapters; and free, legal copies to read or listen to: public-domain ebooks from Project Gutenberg and the Internet Archive, audiobooks from LibriVox. With a TorBox key (API Keys tab), also books and audiobooks already cached on your TorBox. Powers the Books space.",
   resources: [
     "search",
     "meta",
@@ -1110,13 +1110,13 @@ var manifest_default = {
       "books"
     ]
   },
-  rewind: {
+  zero: {
     kind: "books",
     sdk: 2,
-    repo: "j4ckgrey/rewind_codex",
+    repo: "j4ckgrey/zero_codex",
     branch: "main",
     bundlePath: "dist/index.mjs",
-    bundleUrl: "https://raw.githubusercontent.com/j4ckgrey/rewind_codex/main/dist/index.mjs",
+    bundleUrl: "https://raw.githubusercontent.com/j4ckgrey/zero_codex/main/dist/index.mjs",
     tabs: [],
     configKeys: [
       {
